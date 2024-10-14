@@ -1,0 +1,72 @@
+
+from google.colab import files
+import pandas as pd
+
+# Fazer upload do arquivo Excel
+uploaded = files.upload()
+
+# Ler o arquivo Excel (o nome do arquivo será obtido automaticamente)
+for file_name in uploaded.keys():
+    df = pd.read_excel(file_name)
+
+# Criar um dicionário para armazenar as somas
+somas = {}
+
+# Extrair os últimos 5 dígitos do circuito e armazenar em uma nova coluna
+df['Circuito_Final'] = df['Circuito TLB'].str[-5:]
+
+# Agrupar os circuitos pelos últimos 5 dígitos, 'Caracter Circuitos' (A, B, ou C), e 'UF'
+agrupados = df.groupby(['Circuito_Final', 'Caracter Circuitos', 'UF'])['Valor'].sum().reset_index()
+
+# Loop para combinar os circuitos 'A', 'B', e 'C' com os mesmos últimos 5 dígitos e UF
+for i, row in agrupados.iterrows():
+    circuito_base = row['Circuito_Final']  # Últimos 5 dígitos do circuito
+    caractere = row['Caracter Circuitos']  # 'A', 'B', 'C' ou '0'
+    uf = row['UF']  # UF
+    valor = row['Valor']  # Valor já somado para o grupo 'A', 'B', ou 'C'
+
+    # Verificar se é 'A' e se existem os correspondentes 'B' e 'C'
+    if caractere == 'A':
+        valor_b = valor_c = 0  # Inicializar os valores de 'B' e 'C'
+
+        # Encontrar circuitos correspondentes com 'B'
+        circuito_b = agrupados[(agrupados['Circuito_Final'] == circuito_base) &
+                               (agrupados['Caracter Circuitos'] == 'B') &
+                               (agrupados['UF'] == uf)]
+        if not circuito_b.empty:
+            valor_b = circuito_b['Valor'].values[0]
+
+        # Encontrar circuitos correspondentes com 'C'
+        circuito_c = agrupados[(agrupados['Circuito_Final'] == circuito_base) &
+                               (agrupados['Caracter Circuitos'] == 'C') &
+                               (agrupados['UF'] == uf)]
+        if not circuito_c.empty:
+            valor_c = circuito_c['Valor'].values[0]
+
+        # Soma de 'A', 'B', e 'C'
+        soma = valor + valor_b + valor_c
+        somas[(circuito_base, uf)] = soma
+
+# Criar uma nova coluna 'Soma' para armazenar os valores somados
+df['Soma'] = None
+
+# Preencher a nova coluna com as somas baseadas nos grupos 'A', 'B', e 'C'
+for i, row in df.iterrows():
+    circuito_base = row['Circuito_Final']
+    uf = row['UF']
+    if (circuito_base, uf) in somas:
+        df.at[i, 'Soma'] = somas[(circuito_base, uf)]
+
+# Filtrar apenas uma linha por grupo de Circuito_Final e UF (remover duplicados)
+# Vamos manter apenas as linhas com 'Caracter Circuitos' = 'A', ou se não existir 'A', manter 'B', ou 'C'
+df_filtrado = df.drop_duplicates(subset=['Circuito_Final', 'UF'], keep='first')
+
+# Exibir o DataFrame filtrado e atualizado com a nova coluna
+print(df_filtrado)
+
+# Salvar o DataFrame atualizado em um novo arquivo Excel
+output_file_path = '/content/resultado_somas_filtrado_ABC.xlsx'
+df_filtrado.to_excel(output_file_path, index=False)
+
+# Fazer download do arquivo
+files.download(output_file_path)
