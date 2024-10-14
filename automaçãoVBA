@@ -1,0 +1,64 @@
+Sub ImportarCSVsParaPlanilhas()
+    Dim pasta As String
+    Dim arquivo As String
+    Dim nomeAba As String
+    Dim ws As Worksheet
+    Dim dadosCSV As Workbook
+    Dim pastaTrabalhoAtual As Workbook
+    ' Selecionar a pasta com os arquivos CSV
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "Selecione a pasta com os arquivos CSV"
+        If .Show = -1 Then
+            pasta = .SelectedItems(1)
+        Else
+            MsgBox "Nenhuma pasta selecionada.", vbExclamation
+            Exit Sub
+        End If
+    End With
+    ' Definir a pasta de trabalho atual
+    Set pastaTrabalhoAtual = ThisWorkbook
+    ' Localizar o primeiro arquivo CSV na pasta
+    arquivo = Dir(pasta & "\*.csv")
+    ' Verificar se há arquivos CSV na pasta
+    If arquivo = "" Then
+        MsgBox "Nenhum arquivo CSV encontrado na pasta.", vbExclamation
+        Exit Sub
+    End If
+    ' Loop para importar todos os arquivos CSV
+    Do While arquivo <> ""
+        ' Abrir o arquivo CSV temporariamente
+        Set dadosCSV = Workbooks.Open(pasta & "\" & arquivo)
+        ' Criar uma nova planilha na pasta de trabalho atual
+        Set ws = pastaTrabalhoAtual.Sheets.Add(After:=pastaTrabalhoAtual.Sheets(pastaTrabalhoAtual.Sheets.Count))
+        ' Definir o nome da planilha como o nome do arquivo (sem extensão e ajustado)
+        nomeAba = Left(arquivo, Len(arquivo) - 4) ' Remover ".csv" do nome do arquivo
+        nomeAba = AjustarNomeAba(nomeAba) ' Ajustar nome para ser compatível com o Excel
+        ' Renomear a aba
+        ws.Name = nomeAba
+        ' Copiar os dados do CSV para a nova planilha
+        dadosCSV.Sheets(1).UsedRange.Copy Destination:=ws.Cells(1, 1)
+        ' Fechar o arquivo CSV sem salvar
+        dadosCSV.Close False
+        ' Localizar o próximo arquivo CSV na pasta
+        arquivo = Dir
+    Loop
+    MsgBox "Arquivos CSV importados com sucesso!", vbInformation
+End Sub
+ 
+' Função para ajustar o nome da aba conforme as regras do Excel
+Function AjustarNomeAba(nomeAba As String) As String
+    ' Remover caracteres inválidos para nomes de planilhas
+    nomeAba = Replace(nomeAba, "/", "")
+    nomeAba = Replace(nomeAba, "\", "")
+    nomeAba = Replace(nomeAba, ":", "")
+    nomeAba = Replace(nomeAba, "*", "")
+    nomeAba = Replace(nomeAba, "?", "")
+    nomeAba = Replace(nomeAba, "[", "")
+    nomeAba = Replace(nomeAba, "]", "")
+    nomeAba = Replace(nomeAba, "'", "")
+    ' Limitar o nome a 31 caracteres (limite do Excel)
+    If Len(nomeAba) > 31 Then
+        nomeAba = Left(nomeAba, 31)
+    End If
+    AjustarNomeAba = nomeAba
+End Function
