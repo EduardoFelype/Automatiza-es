@@ -1,0 +1,112 @@
+import pandas as pd
+from datetime import datetime
+from google.colab import files
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill
+from openpyxl.utils.dataframe import dataframe_to_rows
+print("você fez oq falei no enunciado? fazer Manualmente a mudanças de A e B e Uf e total /Mudar o MINUTO DO COD")
+input()
+# Fazer o upload do arquivo Excel no Colab
+uploaded = files.upload()
+
+# Carregar o arquivo Excel e pegar a segunda aba
+for file_name in uploaded.keys():
+    # Carregar a segunda aba do arquivo Excel no DataFrame
+    df = pd.read_excel(file_name, sheet_name=1)  # sheet_name=1 carrega a segunda aba (índice 1)
+
+# Exibir os primeiros registros para confirmar o carregamento da planilha correta
+print("Aqui estão os primeiros registros da segunda aba dentro do arquivo:")
+print(df.head())
+
+# Verificar se as colunas necessárias estão presentes
+print("Colunas disponíveis no DataFrame:")
+print(df.columns)
+
+# Se a coluna de circuito e UF existir, extrair o número de circuito
+df['Numero_Circuito'] = df['Circuito'].str.extract(r'(\d+)')
+
+# Converter as colunas de datas para o formato datetime
+df['Data de Início do Incidente'] = pd.to_datetime(df['Data de Início do Incidente'], errors='coerce')
+df['Data do Fim do Incidente'] = pd.to_datetime(df['Data do Fim do Incidente'], errors='coerce')
+
+# Inicializar uma nova coluna para os grupos
+df['Grupo'] = None
+
+# Iterar sobre as linhas e agrupar os circuitos "A" e "B" com horários próximos (dentro de 60 minutos)
+grupo_atual = 1
+for i in range(len(df)):
+    if pd.isna(df.at[i, 'Grupo']):
+        df.at[i, 'Grupo'] = grupo_atual
+        uf_a = df.at[i, 'Uf']
+        numero_a = df.at[i, 'Numero_Circuito']
+        horario_a = df.at[i, 'Data de Início do Incidente']
+        tipo_ab_a = df.at[i, 'Caracter Circuitos']  # Ajuste para o nome correto da coluna "A/B"
+
+        # Comparar com as outras linhas para encontrar o par A e B com o mesmo número de circuito e UF
+        for j in range(i+1, len(df)):
+            uf_b = df.at[j, 'Uf']
+            numero_b = df.at[j, 'Numero_Circuito']
+            horario_b = df.at[j, 'Data do Fim do Incidente']
+            tipo_ab_b = df.at[j, 'Caracter Circuitos']  # Ajuste para o nome correto da coluna "A/B"
+
+            # Verificar se a UF, o número do circuito, e o intervalo de tempo coincidem
+            if (
+                uf_a == uf_b and
+                numero_a == numero_b and
+                abs((horario_a - horario_b).total_seconds()) <= 3600
+            ):
+                # Verificar se são par "A" e "B"
+                if (
+                    (tipo_ab_a == 'A' and tipo_ab_b == 'B') or
+                    (tipo_ab_a == 'B' and tipo_ab_b == 'A')
+                ):
+                    df.at[j, 'Grupo'] = grupo_atual  # Mesmo grupo para A e B
+
+        grupo_atual += 1
+
+# Contar o número de participantes em cada grupo
+grupo_counts = df['Grupo'].value_counts()
+
+# Salvar o DataFrame resultante em uma nova planilha temporária
+df.to_excel('Protocolos_Agrupados_Marcados_temp.xlsx', index=False)
+
+# Carregar a planilha temporária usando openpyxl
+wb = load_workbook('Protocolos_Agrupados_Marcados_temp.xlsx')
+ws = wb.active
+
+# Definir algumas cores para os grupos (pode adicionar mais se necessário)
+colors = ['FFFF00', '00FF00', 'FF00FF', 'FF0000', '00FFFF', '0000FF', 'FFA500', '800080']
+
+# Criar um dicionário para mapear os grupos às cores
+group_colors = {}
+grupo_atual = 1
+
+# Aplicar cores às células baseadas nos grupos que têm mais de 2 participantes
+for row in range(2, ws.max_row + 1):
+    grupo = ws[f'N{row}'].value  # Coluna "Grupo", ajuste conforme necessário
+
+    if grupo in grupo_counts and grupo_counts[grupo] > 2:  # Verifica se o grupo tem mais de 2 participantes
+        if grupo not in group_colors:
+            group_colors[grupo] = colors[(grupo_atual - 1) % len(colors)]  # Ciclar através das cores
+            grupo_atual += 1
+
+        # Aplicar a cor correspondente ao grupo
+        fill = PatternFill(start_color=group_colors[grupo], end_color=group_colors[grupo], fill_type="solid")
+        for col in range(1, ws.max_column + 1):
+            ws.cell(row=row, column=col).fill = fill
+
+# Filtrar os registros que têm "Total" igual ou abaixo de 216 INSS ou Dnit 720
+df_total_baixo = df[df['Total'].astype(float) >= 720]
+
+# Criar uma nova aba para os dados filtrados
+ws_total_baixo = wb.create_sheet(title='Total Alto')
+
+# Copiar os dados para a nova aba
+for r in dataframe_to_rows(df_total_baixo, index=False, header=True):
+    ws_total_baixo.append(r)
+
+# Salvar a planilha final com cores aplicadas
+wb.save('Protocolos_Agrupados_MarcadosClientes.xlsx')
+
+# Download da planilha colorida
+files.download('Protocolos_Agrupados_MarcadosClientes.xlsx')
