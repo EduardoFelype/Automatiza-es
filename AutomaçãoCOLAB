@@ -1,0 +1,44 @@
+import pandas as pd
+import numpy as np
+
+# Fazer upload da planilha
+from google.colab import files
+uploaded = files.upload()
+
+# Carregar a planilha no pandas (troque 'arquivo.xlsx' pelo nome do arquivo que você subiu)
+file_name = list(uploaded.keys())[0]
+df = pd.read_excel(file_name)
+
+# Exibir as primeiras linhas da planilha para confirmação
+print("Visualizando as primeiras linhas da planilha:")
+display(df.head())
+
+# Colunas que iremos verificar (colunas B até H são as colunas de 1 a 7)
+# Supondo que as colunas B até H estejam nomeadas como 'B', 'C', 'D', etc.
+colunas_verificar = ['JANEIRO', 'Fevereiro', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO']
+
+# Criar uma nova coluna que contará quantas vezes um número maior que 0 aparece em B-H, por linha
+df['Contagem de Números'] = 0
+
+# Percorrer todas as linhas do DataFrame
+for index, row in df.iterrows():
+    contador = 0
+    # Verificar cada coluna de B até H na mesma linha
+    for col in colunas_verificar:
+        valor = row[col]
+        # Verifica se o valor é um número, não é '#N/D', e é maior que 0
+        if pd.api.types.is_numeric_dtype(type(valor)) and not pd.isna(valor) and valor < 0:
+            contador += 1
+    # Salvar o contador na nova coluna "Contagem de Números"
+    df.at[index, 'Contagem de Números'] = contador
+
+# Exibir o DataFrame com a contagem por linha
+print("DataFrame atualizado com a contagem de números maiores que 0 nas colunas B até H:")
+display(df[['Circuito'] + colunas_verificar + ['Contagem de Números']])
+
+# Salvar o DataFrame atualizado em um novo arquivo
+caminho_saida = '/content/planilha_resultado.xlsx'
+df.to_excel(caminho_saida, index=False)
+
+# Faça o download do arquivo
+files.download(caminho_saida)
